@@ -117,6 +117,11 @@ function formatUploadLog(meta, config) {
   return `[${config.gymName}] Uploaded ${meta.filename} (${meta.sizeKB} KB) → ${config.uploadDir}`;
 }
 
+function sendJson(res, statusCode, payload) {
+  res.writeHead(statusCode, { "Content-Type": "application/json" });
+  res.end(JSON.stringify(payload));
+}
+
 // ========== 任務五：路由分派 ==========
 /**
  * 吃 HTTP request / response / config，依 method + url 分派到對應處理邏輯。
@@ -155,44 +160,43 @@ function router(req, res, config) {
   //       console.log(err); // 記錄 log、清理暫存檔、額外監控可以寫在這邊
   //     });
 
-  const sendJson = (statusCode, payload) => {
-    res.writeHead(statusCode, { "Content-Type": "application/json" });
-    res.end(JSON.stringify(payload));
-  };
-
   if (req.method === "POST" && req.url === "/coaches/avatar") {
     handleUpload(req, res, config);
     return;
   }
-  // return sendJson(404, { error: "Not Found" });
+
   handleNotFound(req, res);
 }
 
 function handleUpload(req, res, config) {
-  const from = formidable({
+  const form = formidable({
     uploadDir: config.uploadDir,
     maxFileSize: config.maxFileSize,
     keepExtensions: true,
   });
 
-  from.parse(req, (err, fields, files) => {
+  form.parse(req, (err, _fields, files) => {
     if (err) {
-      sendJson(500, { error: err.message });
+      sendJson(res, 500, { error: err.message });
       return;
     }
 
-    const uploadFile = files.file?.[0] ? files.file[0] : files.file;
+    const uploadFile = Array.isArray(files.file) ? files.file[0] : files.file;
     if (!uploadFile) {
-      sendJson(400, { error: "No file uploaded" });
+      sendJson(res, 400, { error: "No file uploaded" });
       return;
     }
 
     const meta = parseFileMetadata(uploadFile);
-    sendJson(200, {
+    sendJson(res, 200, {
       ...meta,
       savedPath: uploadFile.filepath,
     });
   });
+}
+
+function handleNotFound(_req, res) {
+  sendJson(res, 404, { error: "Not Found" });
 }
 
 // ========== 任務六：建立上傳 server ==========
